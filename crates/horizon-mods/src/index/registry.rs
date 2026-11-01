@@ -676,7 +676,7 @@ pub fn review(base: &[Entry], head: &[Entry], author: &str) -> Review {
                 new.kind.name(),
                 new.owners.join(", "),
                 new.repo.as_deref().map_or(String::new(), |repo| format!(
-                    "; its releases come from https://github.com/{repo} with no further review: check the repository is the author\'s and read its source"
+                    "; its releases come from https://github.com/{repo}: check the repository is the author\'s and read its source. Each later release is reviewed before it is listed, as every version is"
                 ))
             ));
         }

@@ -873,7 +873,7 @@ pub fn publish(
                 return Err(Refusal::new(
                     StatusCode::CONFLICT,
                     format!(
-                        "{} is listed by its repository: publish a GitHub release in https://github.com/{repo} and it shows up within the hour",
+                        "{} is listed by its repository: publish a GitHub release in https://github.com/{repo}; a reviewer reads it before it is listed",
                         form.id
                     ),
                 ));
@@ -931,8 +931,9 @@ pub fn publish(
             (entry, Some(blob))
         }
     };
-    // Every check CI runs but the trial run: the file as its kind, its id and
-    // version, its signature, the entry's fields. CI runs it all again.
+    // The file's own checks: the file as its kind, its id and version, its
+    // signature, the entry's fields. CI runs them all again, and refuses a
+    // `.hmod` that holds code; nothing in a submission is run.
     let files = file.parent().unwrap_or(Path::new("."));
     std::fs::copy(file, files.join(&sha256)).map_err(|e| bad(e.to_string()))?;
     let mut checked = entry.clone();
@@ -1024,8 +1025,8 @@ pub fn publish(
         "<!-- submitted-by: {login} -->\n🤖 Submitted through [{site}]({public}/mods/submit) by @{login}. The form opens the pull request with \
          the registry's token: neither Ludovic nor a reviewer wrote it.\n\n\
          | | |\n|---|---|\n| Project | `{id}` ({kind}, {new}) |\n| Version | {version} for {game} |\n| File | `{file}`, {size} bytes, SHA-256 `{sha256}` |\n| Signed | {signed} |\n| Source | {source} |\n\n{lists}\n\n\
-         The checks below run the file's own checks again and, for a mod, a trial run in the sandbox. \
-         Reviewers: read the source and the checks' report before you approve.",
+         The checks below run the file's own checks again (a `.hmod` must be content only); they run nothing in it. \
+         Every version is reviewed, an owner's update too: read the source and the checks' report before you approve.",
         public = config.public_url,
         site = config
             .public_url
@@ -1087,8 +1088,8 @@ pub fn publish(
 }
 
 /// A new project listed by its repository: the entry (a link and a page) on a new branch and a
-/// pull request opened. Its versions are the repository's GitHub releases, read by the registry
-/// without a pull request (docs/api/mod-index.md); a reviewer reads the repository now, once.
+/// pull request opened, where a reviewer reads the repository. Its versions are the repository's
+/// GitHub releases, each read by a reviewer too before it is listed (docs/api/mod-index.md).
 pub fn list(config: &Config, login: &str, user_id: u64, form: &Form) -> Result<String, Refusal> {
     let gh = &config.github;
     let kind = Kind::from(form.kind.clone());
@@ -1162,9 +1163,9 @@ pub fn list(config: &Config, login: &str, user_id: u64, form: &Form) -> Result<S
         "<!-- submitted-by: {login} -->\n🤖 Submitted through [{site}]({public}/mods/submit) by @{login}. The form opens the pull request with \
          the registry's token: neither Ludovic nor a reviewer wrote it.\n\n\
          | | |\n|---|---|\n| Project | `{id}` ({kind}, new) |\n| Repository | https://github.com/{repo} (owned by `{owner}`: {same}) |\n| Signed | {signed} |\n\n\
-         **Reviewers: this is the only review.** Releases published in that repository later are listed after the registry's automatic checks, with no pull request. \
+         **Reviewers: this lists the project, with no version yet.** Each release published in that repository later is reviewed too before it is listed, as every version is. \
          Read the repository and its source, check that the submitter is allowed to speak for it, and that the page is accurate. \
-         The checks below trial the repository's existing releases.",
+         The checks below check the entry and the index it would publish.",
         public = config.public_url,
         site = config
             .public_url

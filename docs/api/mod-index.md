@@ -4,7 +4,7 @@ Horizon's registry lists what is made for Horizon and reviewed: content mods (`.
 [native-mods.md](../native-mods.md)), modpacks (`.hpack`), resource packs and Horizon shader packs (`.hshader`,
 [shaders.md](../shaders.md)). A project is listed by a reviewed pull request in
 [horizon-rust/horizon-mods](https://github.com/horizon-rust/horizon-mods) that links its GitHub repository; its versions are
-the repository's GitHub releases, read and checked by the registry's CI with no pull request and no review per version. The launcher and the
+the repository's GitHub releases, read and checked by the registry's CI and each read by a reviewer before it is listed. The launcher and the
 website read one file, `index.json`, which that repository's CI builds. The Rust types and every check below are
 `horizon_mods::index` and `horizon_mods::modpack` (feature `index`); the sample is
 `crates/horizon-mods/tests/index/index-v1.json`, read by the tests with the files it lists.
@@ -122,7 +122,7 @@ license = "MIT"
 **Versions come from the releases.** For each entry with a `repo`, the registry's CI lists its GitHub releases (drafts
 and pre-releases are skipped) and, for each release it has not read yet, downloads the asset with the kind's extension
 (and its `<name>.minisig` when the project has a key), runs the checks of a submission (below), and if they pass
-adds the version. The version, the game and the pins are the file's own manifest (`horizon-mod.toml`,
+adds the version once a reviewer has read it (below). The version, the game and the pins are the file's own manifest (`horizon-mod.toml`,
 `horizon-native.json`, `horizon-modpack.toml`, the shader manifest); the release's tag stands in where the file
 names none (a leading `v` is dropped). `published` is the release's date, `changelog` its notes (cut at 6000
 characters), `file.url` the asset's address in the repository, `file.sha256` and `size` are computed by the CI and, when GitHub
@@ -162,16 +162,17 @@ date = "2026-10-24"
 ```
 
 Who reviews what: **a project is reviewed when it is listed** (the pull request that adds its entry: the
-repository, its source, the page, the owners), and again if its `repo`, owners or key change. **Later releases are
-checked automatically, not reviewed by a person**; `revoked.toml` takes a bad one down. A signing `key` makes a stolen
+repository, its source, the page, the owners), and again if its `repo`, owners or key change. **Every later version
+is reviewed too, owner or not**: the checks run first, then a reviewer reads the version and its source before it is
+listed, since a native mod's code runs with the player's account permissions. `revoked.toml` takes a bad one down. A signing `key` makes a stolen
 repository or account useless for publishing an update.
 
 The submission form's service (`crates/horizon-mod-registry`) lists a new project: it signs the creator in with GitHub,
 reads the repository's address and the page, and opens the pull request. It no longer takes updates for a project listed
 with a `repo`: "publish a GitHub release in <repo>". Projects without a `repo` can still be updated through the form
-(it uploads the file to the repository's `staging` release as `<sha256>.<extension>` and opens a pull request; an
-owner's update with nothing else changed is merged by `owner-update` once the checks pass). An owner may turn a `mod` into a `native-mod` once by sending an `.hnmod`
-(reviewed by hand, never an owner update); no other kind change goes through. A submission that GitHub broke off after
+(it uploads the file to the repository's `staging` release as `<sha256>.<extension>` and opens a pull request, which
+a reviewer reads before it is merged, an owner's update too). An owner may turn a `mod` into a `native-mod` once by sending an `.hnmod`
+(reviewed by hand); no other kind change goes through. A submission that GitHub broke off after
 making its `submit/<id>-<version>` branch can be sent again: the same account's retry starts that branch again from
 `main` while it has no open pull request; anyone else's is refused.
 
@@ -179,7 +180,7 @@ Unknown keys in an entry are refused. Its CI runs `cargo-horizon-mod` (`crates/c
 
 | Command | What it does |
 | --- | --- |
-| `cargo horizon-mod check <file> [--json]` | A submission's checks: its kind's (above) and its signature with `--key` and `--signature`. It runs no mod's code: a native mod's source is read by the reviewers when it is listed. |
+| `cargo horizon-mod check <file> [--json]` | A submission's checks: its kind's (above) and its signature with `--key` and `--signature`. It runs no mod's code: a native mod's source is read by the reviewers before each version is listed. |
 | `cargo horizon-mod registry check <base> <head> --files <dir>` | `check` on each hosted file `head` lists and `base` doesn't: a pull request's new files. |
 | `cargo horizon-mod registry list <checkout>` | `<sha256> <id> <version> <file>` per hosted version: the files to download. |
 | `cargo horizon-mod registry build <checkout> --files <dir> --out index.json` | Reads every entry, its hosted files (`<dir>/<sha256>`) and `versions/<id>.json`, lists every problem, and writes the index (`--release`, ending in `/`, defaults to the repository's releases, for hosted versions). |
@@ -196,7 +197,7 @@ How the repository runs (its workflows are in `.github/workflows/`):
   keep the result on the `versions` branch, make each new hosted version a release `<id>-<version>`, and deploy
   `index.json` and `icons/` to GitHub Pages: `https://horizon-rust.github.io/horizon-mods/index.json`, served with
   `Access-Control-Allow-Origin: *`.
-- **Merging** an entry needs the `check` run and a CODEOWNER's review.
+- **Merging** an entry or a new version needs the `check` run and a CODEOWNER's review, whoever sent it.
 - **Weekly**, `cleanup.yml` deletes staged copies of published files after 7 days and of files no open pull request
   lists after 30.
 - **Taking a file down** is a pull request adding it to `revoked.toml`. Removing an entry outright (a test, a project
@@ -210,6 +211,7 @@ opens.
 
 ## Changelog
 
+- 2026-11-01: a reviewer reads every version before it is listed, an owner's update included; before, only a project's first listing was reviewed. The index's schema is unchanged.
 - 2026-10-30: an entry names its GitHub repository (`repo`) and its versions are the repository's releases, read by the registry's CI; `file.url` may be a release asset of that repository. The index's schema is unchanged.
 - 2026-10-26: `projects[].downloads`, GitHub's download counts of a project's files, refreshed every hour.
 - 2026-10-26: the launcher installs `shader` files into `shaderpacks/`; the sample index lists one (`glow`).

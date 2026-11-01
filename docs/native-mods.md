@@ -7,8 +7,8 @@ RETURN, MODIFY_ARG, OVERWRITE...; the tool's README lists them). A port such as 
 one module. Start a mod from [horizon-native-mod-template](https://github.com/horizon-rust/horizon-native-mod-template).
 
 Native mods are native code with the player's rights, not sandboxed. They are always on in the launcher: there is no
-switch. The first install shows a trust notice, and every build waits behind a red warning; the registry lists one only
-after a review (its later releases are checked by machine); and they play in a game of their own, built for the
+switch. The first install shows a trust notice, and every build waits behind a red warning; the registry lists each
+version only after a review (its later releases too, owner or not); and they play in a game of their own, built for the
 instance they are installed in.
 
 ## Pinned to a Nightly
@@ -903,8 +903,9 @@ each was built or last used): switching a mod off and on again plays the kept bu
   Horizon's own.
 - **The registry** (horizon-rust/horizon-mods) lists them as their own kind, `native-mod`, only after a maintainer
   has read the source and the repository they come from. Its entry names the GitHub repository (`repo`); each
-  release of it with a `.hnmod` asset is a version once the bundle passes the registry's checks, with no further
-  review (nothing is built or run by the registry; the player's launcher builds it behind its warning). The `.hnmod` contains `.rs` and `.toml` files and may contain data files under
+  release of it with a `.hnmod` asset is a version once the bundle passes the registry's checks and a reviewer has
+  read it too: every version is reviewed, owner or not, because its code runs with the player's account permissions
+  (nothing is built or run by the registry; the player's launcher builds it behind its warning). The `.hnmod` contains `.rs` and `.toml` files and may contain data files under
   `mixins/<id>/data/` or a crate's `data/`. The launcher checks the bundle without running anything. Native code is trusted.
   The file is pinned by SHA-256 like every registry file, and the version, game and pins are the bundle's own
   `horizon-native.json`. `revoked.toml` takes a bad release down.

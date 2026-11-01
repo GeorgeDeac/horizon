@@ -350,8 +350,8 @@ game, so it works from any hook, and makes the folder when missing. Settings kep
 
 ## Publish your mod
 
-Horizon's registry lists mods, modpacks (`.hpack`) and resource packs made for Horizon. **A project is reviewed
-once, when it is listed; its later releases are checked by machine, not read by a person.** Players find them at
+Horizon's registry lists mods, modpacks (`.hpack`) and resource packs made for Horizon. **Every version is read by a
+reviewer before it is listed: the first, when the project is listed, and each later release, owner or not.** Players find them at
 [playhorizon.dev/mods](https://playhorizon.dev/mods) and in the launcher (Mods, then **Horizon** beside Modrinth),
 which checks every file before it installs it.
 
@@ -365,10 +365,11 @@ which checks every file before it installs it.
    request in [horizon-rust/horizon-mods](https://github.com/horizon-rust/horizon-mods) adding `mods/<id>.toml`, with
    you as owner. A reviewer reads the repository and its source and merges it.
 
-**Releasing a version is only step 3.** Publish a GitHub release (not a draft or a pre-release); within the hour the
-registry reads it, runs the checks a submission runs (the file's own, the signature, the id and the version in the
-file's manifest), and lists it. A release that fails is skipped and reported in an issue of the registry, never
-published. Nobody opens a pull request and nobody reviews it. The version is the one in the file's manifest (the tag
+**Releasing a version is step 3 again.** Publish a GitHub release (not a draft or a pre-release); the registry reads
+it and runs the checks a submission runs (the file's own, the signature, the id and the version in the file's
+manifest). A release that fails is skipped and reported in an issue of the registry, never published. One that passes
+is listed once a reviewer has read it and its source, as for the first version: a native mod's code runs with the
+player's account permissions. The version is the one in the file's manifest (the tag
 when the file has none), the date and the changelog are the release's, the SHA-256 is computed by the registry, and
 the launcher downloads the asset from your repository and refuses any other bytes. A published file never changes:
 publish a new version. `revoked.toml` takes a bad one down.

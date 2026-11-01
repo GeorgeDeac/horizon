@@ -32,8 +32,6 @@ struct Mock {
     /// (branch, path) -> (text, message, replaced blob).
     commits: HashMap<(String, String), (String, String, Option<String>)>,
     pulls: Vec<Value>,
-    /// (pull request number, labels added).
-    labels: Vec<(u64, Value)>,
     /// The account the next sign-in gets.
     login: String,
     /// GitHub takes this long to find the staging release.
@@ -182,13 +180,6 @@ async fn mock_github() -> (String, Shared) {
                 s.pulls.push(b);
                 let n = s.pulls.len();
                 Ok(Json(json!({"html_url": format!("https://github.com/o/r/pull/{n}"), "number": n})))
-            }),
-        )
-        .route(
-            "/repos/o/r/issues/{n}/labels",
-            post(|State(s): State<Shared>, UrlPath(n): UrlPath<u64>, Json(b): Json<Value>| async move {
-                s.lock().unwrap().labels.push((n, b["labels"].clone()));
-                Json(json!([]))
             }),
         )
         .with_state(state.clone());
@@ -345,15 +336,6 @@ async fn setup() -> (Client, Shared) {
 }
 
 async fn setup_with(change: impl FnOnce(&mut github::GitHub)) -> (Client, Shared) {
-    setup_keyed(change, Some(UPDATE_KEY)).await
-}
-
-const UPDATE_KEY: &[u8] = b"a test update key";
-
-async fn setup_keyed(
-    change: impl FnOnce(&mut github::GitHub),
-    update_key: Option<&[u8]>,
-) -> (Client, Shared) {
     let (base, mock) = mock_github().await;
     let scratch =
         std::env::temp_dir().join(format!("horizon-mod-registry-test-{}", std::process::id()));
@@ -373,7 +355,6 @@ async fn setup_keyed(
         public_url: PUBLIC.into(),
         session_key: b"a test key of at least thirty-two bytes".to_vec(),
         github,
-        update_key: update_key.map(<[u8]>::to_vec),
         scratch,
         database: ":memory:".into(),
     };
@@ -449,98 +430,6 @@ fn published(owner: &str, key: bool) -> String {
     );
     toml::from_str::<Entry>(&text).unwrap();
     text
-}
-
-/// What an update by `alice` leaves on GitHub: (the pull request's body, its labels).
-async fn update(
-    main: String,
-    change: impl FnOnce(&mut Value),
-    key: Option<&[u8]>,
-) -> (String, Vec<(u64, Value)>) {
-    let (mut client, mock) = setup_keyed(|_| {}, key).await;
-    mock.lock()
-        .unwrap()
-        .main
-        .insert("mods/coords_hud.toml".into(), main);
-    let file = std::fs::read(fixtures().join("coords_hud-0.1.0.hmod")).unwrap();
-    let csrf = client.sign_in().await;
-    let mut f = form();
-    change(&mut f);
-    let (status, json) = client.submit(&csrf, &f, &file).await;
-    assert_eq!(status, StatusCode::OK, "{json}");
-    let m = mock.lock().unwrap();
-    (
-        m.pulls[0]["body"].as_str().unwrap().to_owned(),
-        m.labels.clone(),
-    )
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn an_owners_update_is_signed_for_the_repository() {
-    use hmac::{Hmac, Mac};
-    let (body, labels) = update(published("alice", true), |_| {}, Some(UPDATE_KEY)).await;
-    let trailer = body.split("<!-- owner-update\n").nth(1).expect(&body);
-    let mut mac = Hmac::<sha2::Sha256>::new_from_slice(UPDATE_KEY).unwrap();
-    mac.update(
-        format!("owner-update-v1\ncoords_hud\n0.1.0\n{HMOD_SHA}\ncoords_hud-0.1.0.hmod\nalice")
-            .as_bytes(),
-    );
-    let hmac: String = mac
-        .finalize()
-        .into_bytes()
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect();
-    assert_eq!(
-        trailer,
-        format!(
-            "id: coords_hud\nversion: 0.1.0\nsha256: {HMOD_SHA}\nfile: coords_hud-0.1.0.hmod\nsubmitter: alice\nhmac: {hmac}\n-->"
-        ),
-    );
-    assert_eq!(labels, [(1, json!(["owner-update"]))]);
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn everything_else_waits_for_a_reviewer() {
-    let unsigned = |body: &str, labels: &[(u64, Value)]| {
-        assert!(!body.contains("owner-update"), "{body}");
-        assert!(labels.is_empty());
-    };
-    // A new project, not an update (alice isn't in a missing entry's owners).
-    let (mut client, mock) = setup().await;
-    let file = std::fs::read(fixtures().join("coords_hud-0.1.0.hmod")).unwrap();
-    let csrf = client.sign_in().await;
-    client.submit(&csrf, &form(), &file).await;
-    {
-        let m = mock.lock().unwrap();
-        unsigned(m.pulls[0]["body"].as_str().unwrap(), &m.labels);
-    }
-    // The feature is off without the secret.
-    let (body, labels) = update(published("alice", true), |_| {}, None).await;
-    unsigned(&body, &labels);
-    // The page's text changes with the version.
-    let (body, labels) = update(
-        published("alice", true),
-        |f| f["summary"] = json!("Another."),
-        Some(UPDATE_KEY),
-    )
-    .await;
-    unsigned(&body, &labels);
-    // A new icon.
-    let (body, labels) = update(
-        published("alice", true),
-        |f| f["icon"] = json!("https://x.test/i.png"),
-        Some(UPDATE_KEY),
-    )
-    .await;
-    unsigned(&body, &labels);
-    // A project with no key (and so no signature) is signed as well.
-    let unkeyed = |f: &mut Value| {
-        f.as_object_mut().unwrap().remove("key");
-        f.as_object_mut().unwrap().remove("signature");
-    };
-    let (body, _) = update(published("alice", false), unkeyed, Some(UPDATE_KEY)).await;
-    assert!(body.contains("<!-- owner-update"));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -905,11 +794,6 @@ async fn a_mod_turns_native_once() {
         assert!(m.assets[0].0.ends_with(".hnmod"), "{:?}", m.assets);
         let body = m.pulls[0]["body"].as_str().unwrap();
         assert!(body.contains("(native-mod, update: turns native"), "{body}");
-        // Reviewed by hand: never merged as an owner update.
-        assert!(
-            !body.contains("owner-update") && m.labels.is_empty(),
-            "{body}"
-        );
         text.clone()
     };
     let entry: Entry = toml::from_str(&text).unwrap();
@@ -954,11 +838,7 @@ async fn a_project_is_listed_by_its_repository_and_never_updated_by_the_form() {
         assert_eq!(entry.owners, ["alice"]);
         assert!(entry.versions.is_empty());
         let body = m.pulls[0]["body"].as_str().unwrap();
-        assert!(
-            body.contains("the submitter") && !body.contains("owner-update"),
-            "{body}"
-        );
-        assert!(m.labels.is_empty());
+        assert!(body.contains("the submitter"), "{body}");
     }
     // A repository that is not found or private, a missing licence, a file beside a repository.
     let mut other = listing.clone();

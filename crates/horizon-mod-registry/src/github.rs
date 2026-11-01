@@ -367,14 +367,6 @@ impl GitHub {
             pr["number"].as_u64().unwrap_or(0),
         ))
     }
-
-    /// Adds `label` to pull request `number` (GitHub creates it when new).
-    pub fn label(&self, number: u64, label: &str) -> Result<()> {
-        self.call("POST", &format!("/issues/{number}/labels"))
-            .send_json(json!({"labels": [label]}))
-            .map_err(failure)?;
-        Ok(())
-    }
 }
 
 /// Percent-encodes a query value.
